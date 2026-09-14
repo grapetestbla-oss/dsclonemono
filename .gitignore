@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+panel.db
+.venv/
+venv/
+.env

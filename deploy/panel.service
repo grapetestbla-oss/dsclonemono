@@ -1,0 +1,23 @@
+[Unit]
+Description=Admin Panel (gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/targetpanel
+Environment=PANEL_URL_PREFIX=/targetpanel
+Environment=PANEL_COOKIE_SECURE=1
+# Generate once with: python3 -c "import secrets; print(secrets.token_hex(32))"
+Environment=PANEL_SECRET_KEY=CHANGE_ME_TO_A_LONG_RANDOM_HEX
+# Optional: override the seeded admin credentials on first run.
+# Environment=PANEL_ADMIN_USER=rym6a
+# Environment=PANEL_ADMIN_PASSWORD=change_this
+Environment=PANEL_DB_PATH=/opt/targetpanel/panel.db
+ExecStart=/opt/targetpanel/.venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 wsgi:app
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

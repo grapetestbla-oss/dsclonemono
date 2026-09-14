@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Панель{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #0f1115; --panel: #171a21; --panel2: #1f232d; --border: #2a2f3a;
+      --text: #e6e8ec; --muted: #9aa3b2; --accent: #4f8cff; --accent-hover: #3f78e0;
+      --danger: #e05260; --danger-hover: #c8434f; --ok: #3fbf7f;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+           background: var(--bg); color: var(--text); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header { display: flex; align-items: center; justify-content: space-between;
+             padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border); }
+    header .brand { font-weight: 600; letter-spacing: .3px; }
+    nav a { color: var(--muted); margin-right: 18px; font-weight: 500; }
+    nav a:hover { color: var(--text); text-decoration: none; }
+    .wrap { max-width: 960px; margin: 28px auto; padding: 0 20px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+            padding: 22px; margin-bottom: 20px; }
+    h1 { font-size: 20px; margin: 0 0 16px; }
+    h2 { font-size: 16px; margin: 0 0 14px; color: var(--muted); font-weight: 600;
+         text-transform: uppercase; letter-spacing: .5px; }
+    label { display: block; margin: 12px 0 6px; color: var(--muted); font-size: 13px; }
+    input, select { width: 100%; padding: 10px 12px; background: var(--panel2);
+            border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    .btn { display: inline-block; padding: 9px 16px; border: none; border-radius: 8px;
+           background: var(--accent); color: #fff; font-size: 14px; font-weight: 600;
+           cursor: pointer; }
+    .btn:hover { background: var(--accent-hover); }
+    .btn.secondary { background: var(--panel2); border: 1px solid var(--border); color: var(--text); }
+    .btn.secondary:hover { background: #262b36; }
+    .btn.danger { background: var(--danger); }
+    .btn.danger:hover { background: var(--danger-hover); }
+    .btn.sm { padding: 6px 11px; font-size: 13px; }
+    form.inline { display: inline; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+    .badge { padding: 3px 9px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    .badge.admin { background: rgba(79,140,255,.15); color: var(--accent); }
+    .badge.user { background: rgba(154,163,178,.15); color: var(--muted); }
+    .badge.on { background: rgba(63,191,127,.15); color: var(--ok); }
+    .badge.off { background: rgba(224,82,96,.15); color: var(--danger); }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .stat { background: var(--panel2); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+    .stat .n { font-size: 28px; font-weight: 700; }
+    .stat .l { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .flash { padding: 11px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 14px; }
+    .flash.error { background: rgba(224,82,96,.12); color: #f2a3ab; border: 1px solid rgba(224,82,96,.3); }
+    .flash.success { background: rgba(63,191,127,.12); color: #9ee3bf; border: 1px solid rgba(63,191,127,.3); }
+    .muted { color: var(--muted); }
+    .row-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    @media (max-width: 640px){ .stats { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  {% if current_user %}
+  <header>
+    <div class="brand">🛡 Панель управления</div>
+    <nav>
+      <a href="{{ url_for('dashboard') }}">Главная</a>
+      {% if current_user['role'] == 'admin' %}<a href="{{ url_for('users') }}">Пользователи</a>{% endif %}
+      <a href="{{ url_for('account') }}">Аккаунт</a>
+      <span class="muted" style="margin-right:14px;">{{ current_user['username'] }}</span>
+      <form class="inline" method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn secondary sm" type="submit">Выйти</button>
+      </form>
+    </nav>
+  </header>
+  {% endif %}
+  <div class="wrap">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

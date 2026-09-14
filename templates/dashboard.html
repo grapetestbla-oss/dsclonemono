@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Главная — Панель{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Добро пожаловать, {{ current_user['username'] }}</h1>
+  <p class="muted">Ваша роль:
+    <span class="badge {{ current_user['role'] }}">{{ 'Администратор' if current_user['role'] == 'admin' else 'Пользователь' }}</span>
+  </p>
+</div>
+
+{% if current_user['role'] == 'admin' %}
+<div class="card">
+  <h2>Обзор</h2>
+  <div class="stats">
+    <div class="stat"><div class="n">{{ total }}</div><div class="l">Всего пользователей</div></div>
+    <div class="stat"><div class="n">{{ active }}</div><div class="l">Активных</div></div>
+    <div class="stat"><div class="n">{{ admins }}</div><div class="l">Администраторов</div></div>
+  </div>
+  <p style="margin-top:18px;"><a href="{{ url_for('users') }}">Управление пользователями →</a></p>
+</div>
+{% endif %}
+{% endblock %}
