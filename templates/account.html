@@ -1,17 +1,64 @@
 {% extends "base.html" %}
-{% block title %}Аккаунт — Панель{% endblock %}
+{% import "_ui.html" as ui %}
+{% block title %}Аккаунт{% endblock %}
 {% block content %}
-<div class="card" style="max-width:440px;">
-  <h1>Смена пароля</h1>
-  <form method="post" action="{{ url_for('account') }}">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <label for="current_password">Текущий пароль</label>
-    <input id="current_password" name="current_password" type="password" required>
-    <label for="new_password">Новый пароль</label>
-    <input id="new_password" name="new_password" type="password" required minlength="8">
-    <label for="confirm_password">Повторите новый пароль</label>
-    <input id="confirm_password" name="confirm_password" type="password" required minlength="8">
-    <button class="btn" type="submit" style="margin-top:18px;">Обновить пароль</button>
-  </form>
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Настройки</div>
+    <h1 class="page-title">Аккаунт</h1>
+  </div>
+</div>
+
+<div class="grid grid-account">
+  <section class="card rise">
+    {{ ui.avatar(current_user['username'], 'xl') }}
+    <h2 style="font-family: var(--font-display); font-size: 22px; letter-spacing: -.03em; margin-top: 18px;">{{ current_user['username'] }}</h2>
+    <p style="margin-top: 8px;"><span class="badge {{ current_user['role'] }}">{{ ui.role_label(current_user['role']) }}</span></p>
+    <dl class="kv">
+      <div><dt>Статус</dt><dd><span class="status on">активен</span></dd></div>
+      <div><dt>Создан</dt><dd>{{ current_user['created_at']|date_ru }}</dd></div>
+      <div><dt>Кем</dt><dd>{{ current_user['created_by'] or '—' }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="card rise">
+    <div class="card-head">
+      <h2 class="card-title">{{ ui.icon('key') }} Смена пароля</h2>
+    </div>
+    <form method="post" action="{{ url_for('account') }}" style="max-width: 460px;">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="current_password">Текущий пароль</label>
+        <div class="control">
+          {{ ui.icon('lock') }}
+          <input class="input has-tail" id="current_password" name="current_password" type="password" autocomplete="current-password" required>
+          <div class="control-tail">
+            <button class="icon-btn" type="button" data-reveal="current_password" aria-label="Показать пароль" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="new_password">Новый пароль</label>
+        <div class="control">
+          {{ ui.icon('key') }}
+          <input class="input has-tail" id="new_password" name="new_password" type="password" autocomplete="new-password" required minlength="8">
+          <div class="control-tail">
+            <button class="icon-btn" type="button" data-reveal="new_password" aria-label="Показать пароль" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg></button>
+          </div>
+        </div>
+        <div class="strength" data-strength="new_password"><span></span><span></span><span></span><span></span></div>
+        <span class="hint" id="new_password-hint">Минимум 8 символов</span>
+      </div>
+      <div class="field">
+        <label for="confirm_password">Повторите новый пароль</label>
+        <div class="control">
+          {{ ui.icon('check') }}
+          <input class="input" id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" required minlength="8" data-match="new_password">
+        </div>
+        <span class="hint" id="confirm_password-hint"></span>
+      </div>
+      <button class="btn" type="submit">{{ ui.icon('check') }} Обновить пароль</button>
+    </form>
+  </section>
 </div>
 {% endblock %}

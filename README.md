@@ -10,11 +10,17 @@ integrations.
 - User management (admin): create, enable/disable, change role, delete.
 - Self-service password change for every user.
 - CSRF protection on all state-changing requests.
+- Login brute-force protection (5 failures per IP / 15 min → HTTP 429).
+- Dark / light theme, responsive layout (sidebar → drawer on mobile),
+  user search & filters, password generator and strength meter.
 - Deployable under a sub-path (e.g. `https://brawlboost.us/targetpanel`).
 
 ## Stack
 
 Python + Flask + SQLite (stdlib `sqlite3`). Served by gunicorn behind nginx.
+Frontend: Jinja templates + one stylesheet (`static/app.css`) and one small
+vanilla script (`static/app.js`); no build step. Fonts (Onest, Unbounded) load
+from Google Fonts with system-font fallbacks.
 
 ## Run locally
 
@@ -36,7 +42,7 @@ the seed before first run with `PANEL_ADMIN_USER` / `PANEL_ADMIN_PASSWORD`.
 
 | Variable                | Default            | Purpose                                        |
 |-------------------------|--------------------|------------------------------------------------|
-| `PANEL_SECRET_KEY`      | random per boot    | Flask session signing key. **Set a fixed value in production** or sessions drop on restart. |
+| `PANEL_SECRET_KEY`      | generated, stored in `.panel_secret_key` next to the DB | Flask session signing key. Set a fixed value in production. |
 | `PANEL_DB_PATH`         | `./panel.db`       | SQLite file location.                          |
 | `PANEL_URL_PREFIX`      | *(empty)*          | Sub-path when run directly (nginx uses `X-Forwarded-Prefix` instead). |
 | `PANEL_COOKIE_SECURE`   | `0`                | Set to `1` behind HTTPS.                        |
@@ -60,7 +66,7 @@ sudo apt install -y python3-venv nginx certbot python3-certbot-nginx
 
 # 2. App code
 sudo mkdir -p /opt/targetpanel
-sudo cp -r app.py wsgi.py requirements.txt templates /opt/targetpanel/
+sudo cp -r app.py wsgi.py requirements.txt templates static /opt/targetpanel/
 cd /opt/targetpanel
 sudo python3 -m venv .venv
 sudo .venv/bin/pip install -r requirements.txt

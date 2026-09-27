@@ -1,9 +1,12 @@
 {% extends "base.html" %}
+{% import "_ui.html" as ui %}
 {% block title %}Ошибка {{ code }}{% endblock %}
 {% block content %}
-<div class="card" style="text-align:center;">
-  <h1 style="font-size:48px;margin-bottom:8px;">{{ code }}</h1>
-  <p class="muted">{{ message }}</p>
-  <p style="margin-top:18px;"><a href="{{ url_for('index') }}">← На главную</a></p>
+<div class="error-wrap">
+  <div class="rise">
+    <div class="error-code">{{ code }}</div>
+    <p>{{ message }}</p>
+    <a class="btn" href="{{ url_for('index') }}">{{ ui.icon('arrow-left') }} На главную</a>
+  </div>
 </div>
 {% endblock %}

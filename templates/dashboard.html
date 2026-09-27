@@ -1,22 +1,115 @@
 {% extends "base.html" %}
-{% block title %}Главная — Панель{% endblock %}
+{% import "_ui.html" as ui %}
+{% block title %}Главная{% endblock %}
 {% block content %}
-<div class="card">
-  <h1>Добро пожаловать, {{ current_user['username'] }}</h1>
-  <p class="muted">Ваша роль:
-    <span class="badge {{ current_user['role'] }}">{{ 'Администратор' if current_user['role'] == 'admin' else 'Пользователь' }}</span>
-  </p>
-</div>
+{% set is_admin = current_user['role'] == 'admin' %}
+<div class="stack">
+  <section class="card hero rise">
+    <div class="hero-inner">
+      {{ ui.avatar(current_user['username'], 'xl') }}
+      <div>
+        <div class="eyebrow">Обзор</div>
+        <h1>Добро пожаловать, {{ current_user['username'] }}</h1>
+        <p>Ваша роль: <span class="badge {{ current_user['role'] }}">{{ ui.role_label(current_user['role']) }}</span>
+          <span class="faint">· в системе с {{ current_user['created_at']|date_ru }}</span></p>
+      </div>
+    </div>
+  </section>
 
-{% if current_user['role'] == 'admin' %}
-<div class="card">
-  <h2>Обзор</h2>
-  <div class="stats">
-    <div class="stat"><div class="n">{{ total }}</div><div class="l">Всего пользователей</div></div>
-    <div class="stat"><div class="n">{{ active }}</div><div class="l">Активных</div></div>
-    <div class="stat"><div class="n">{{ admins }}</div><div class="l">Администраторов</div></div>
+  {% if is_admin %}
+  {% set pct_active = (active * 100 / total)|round|int if total else 0 %}
+  {% set pct_admin = (admins * 100 / total)|round|int if total else 0 %}
+  {% set disabled = total - active %}
+  <section class="stats" aria-label="Статистика">
+    <div class="stat rise">
+      <div class="stat-top">Всего пользователей <span class="stat-ico accent">{{ ui.icon('users', 'sm') }}</span></div>
+      <div class="stat-n" data-count="{{ total }}">{{ total }}</div>
+      <div class="meter"><span data-w="100"></span></div>
+    </div>
+    <div class="stat rise">
+      <div class="stat-top">Активных <span class="stat-ico ok">{{ ui.icon('activity', 'sm') }}</span></div>
+      <div class="stat-n" data-count="{{ active }}">{{ active }}</div>
+      <div class="meter ok"><span data-w="{{ pct_active }}"></span></div>
+      <div class="stat-foot">{{ pct_active }}% от общего числа</div>
+    </div>
+    <div class="stat rise">
+      <div class="stat-top">Администраторов <span class="stat-ico violet">{{ ui.icon('shield', 'sm') }}</span></div>
+      <div class="stat-n" data-count="{{ admins }}">{{ admins }}</div>
+      <div class="meter violet"><span data-w="{{ pct_admin }}"></span></div>
+      <div class="stat-foot">{{ pct_admin }}% от общего числа</div>
+    </div>
+    <div class="stat rise">
+      <div class="stat-top">Отключённых <span class="stat-ico danger">{{ ui.icon('ban', 'sm') }}</span></div>
+      <div class="stat-n" data-count="{{ disabled }}">{{ disabled }}</div>
+      <div class="meter danger"><span data-w="{{ 100 - pct_active if total else 0 }}"></span></div>
+      <div class="stat-foot">{{ 'Все учётные записи активны' if disabled == 0 else 'Нет доступа в панель' }}</div>
+    </div>
+  </section>
+
+  <div class="grid grid-2">
+    <section class="card rise">
+      <div class="card-head">
+        <h2 class="card-title">{{ ui.icon('users') }} Последние пользователи</h2>
+        <a class="btn ghost sm" href="{{ url_for('users') }}">Все {{ ui.icon('arrow-right', 'sm') }}</a>
+      </div>
+      <div class="list">
+        {% for u in recent %}
+        <div class="list-item">
+          {{ ui.avatar(u['username'], 'sm') }}
+          <div class="list-main">
+            <div class="list-title">{{ u['username'] }}</div>
+            <div class="list-sub">{{ u['created_at']|date_ru }} · {{ u['created_by'] or '—' }}</div>
+          </div>
+          <span class="status {{ 'on' if u['is_active'] else 'off' }}"></span>
+          <span class="badge {{ u['role'] }}">{{ 'Админ' if u['role'] == 'admin' else 'Юзер' }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="card rise">
+      <div class="card-head"><h2 class="card-title">{{ ui.icon('zap') }} Быстрые действия</h2></div>
+      <div class="actions">
+        <a class="action" href="{{ url_for('users') }}#new">
+          <span class="action-ico">{{ ui.icon('user-plus') }}</span>
+          <span class="action-text"><b>Новый пользователь</b><span>Создать учётную запись</span></span>
+          <span class="action-go">{{ ui.icon('arrow-right') }}</span>
+        </a>
+        <a class="action" href="{{ url_for('users') }}">
+          <span class="action-ico alt">{{ ui.icon('shield') }}</span>
+          <span class="action-text"><b>Роли и доступ</b><span>Назначить, отключить, удалить</span></span>
+          <span class="action-go">{{ ui.icon('arrow-right') }}</span>
+        </a>
+        <a class="action" href="{{ url_for('account') }}">
+          <span class="action-ico plain">{{ ui.icon('key') }}</span>
+          <span class="action-text"><b>Сменить пароль</b><span>Безопасность аккаунта</span></span>
+          <span class="action-go">{{ ui.icon('arrow-right') }}</span>
+        </a>
+      </div>
+    </section>
   </div>
-  <p style="margin-top:18px;"><a href="{{ url_for('users') }}">Управление пользователями →</a></p>
+  {% else %}
+  <div class="grid grid-2">
+    <section class="card rise">
+      <div class="card-head"><h2 class="card-title">{{ ui.icon('user') }} Ваш аккаунт</h2></div>
+      <dl class="kv">
+        <div><dt>Логин</dt><dd>{{ current_user['username'] }}</dd></div>
+        <div><dt>Роль</dt><dd>{{ ui.role_label(current_user['role']) }}</dd></div>
+        <div><dt>Создан</dt><dd>{{ current_user['created_at']|date_ru }}</dd></div>
+        <div><dt>Кем</dt><dd>{{ current_user['created_by'] or '—' }}</dd></div>
+      </dl>
+    </section>
+    <section class="card rise">
+      <div class="card-head"><h2 class="card-title">{{ ui.icon('zap') }} Быстрые действия</h2></div>
+      <div class="actions">
+        <a class="action" href="{{ url_for('account') }}">
+          <span class="action-ico">{{ ui.icon('key') }}</span>
+          <span class="action-text"><b>Сменить пароль</b><span>Безопасность аккаунта</span></span>
+          <span class="action-go">{{ ui.icon('arrow-right') }}</span>
+        </a>
+      </div>
+    </section>
+  </div>
+  {% endif %}
 </div>
-{% endif %}
 {% endblock %}

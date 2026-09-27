@@ -4,3 +4,4 @@ panel.db
 .venv/
 venv/
 .env
+.panel_secret_key

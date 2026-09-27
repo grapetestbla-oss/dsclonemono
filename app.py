@@ -12,7 +12,7 @@ No external integrations. This is a generic administration foundation.
 import os
 import sqlite3
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 from flask import (
@@ -34,6 +34,34 @@ URL_PREFIX = os.environ.get("PANEL_URL_PREFIX", "").rstrip("/")
 # Initial admin seeded on first run. Override via env in production.
 SEED_ADMIN_USER = os.environ.get("PANEL_ADMIN_USER", "rym6a")
 SEED_ADMIN_PASSWORD = os.environ.get("PANEL_ADMIN_PASSWORD", "targetclxn_rym6a4ka")
+
+# Brute-force protection: this many failed logins from one IP within the
+# window locks that IP out until the window passes.
+LOGIN_MAX_FAILURES = 5
+LOGIN_WINDOW = timedelta(minutes=15)
+
+
+def load_secret_key():
+    """
+    Return the session signing key.
+
+    Prefer PANEL_SECRET_KEY. Otherwise persist a generated key next to the
+    database: a per-process random key would differ between gunicorn workers
+    and log users out on every other request.
+    """
+    key = os.environ.get("PANEL_SECRET_KEY")
+    if key:
+        return key
+    path = os.path.join(os.path.dirname(os.path.abspath(DB_PATH)), ".panel_secret_key")
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        with open(path) as f:
+            return f.read().strip()
+    key = secrets.token_hex(32)
+    with os.fdopen(fd, "w") as f:
+        f.write(key)
+    return key
 
 
 class PrefixMiddleware:
@@ -66,7 +94,7 @@ class PrefixMiddleware:
 def create_app():
     app = Flask(__name__)
     app.config.update(
-        SECRET_KEY=os.environ.get("PANEL_SECRET_KEY", secrets.token_hex(32)),
+        SECRET_KEY=load_secret_key(),
         APPLICATION_ROOT=URL_PREFIX or "/",
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
@@ -105,6 +133,14 @@ def create_app():
             )
             """
         )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS login_failures (
+                ip         TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         db.commit()
         # Seed the first admin only if the table is empty.
         count = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
@@ -139,6 +175,12 @@ def create_app():
     def inject_user():
         return {"current_user": current_user()}
 
+    def safe_next(target):
+        """Only allow redirects to a local path (not //host or /\\host)."""
+        if target.startswith("/") and not target.startswith(("//", "/\\")):
+            return target
+        return None
+
     def login_required(view):
         @wraps(view)
         def wrapped(*args, **kwargs):
@@ -170,6 +212,26 @@ def create_app():
 
     app.jinja_env.globals["csrf_token"] = csrf_token
 
+    # ------------------------------------------------------------------ #
+    # Template helpers
+    # ------------------------------------------------------------------ #
+    MONTHS_RU = ("янв", "фев", "мар", "апр", "мая", "июн",
+                 "июл", "авг", "сен", "окт", "ноя", "дек")
+
+    @app.template_filter("hue")
+    def hue(text):
+        """Stable avatar hue (0-359) derived from a username."""
+        return sum((i + 1) * b for i, b in enumerate(str(text).encode())) % 360
+
+    @app.template_filter("date_ru")
+    def date_ru(iso):
+        """'2026-09-27T11:03:27+00:00' -> '27 сен 2026'."""
+        try:
+            d = datetime.fromisoformat(iso)
+        except (TypeError, ValueError):
+            return iso or "—"
+        return f"{d.day} {MONTHS_RU[d.month - 1]} {d.year}"
+
     @app.before_request
     def check_csrf():
         if request.method == "POST":
@@ -186,22 +248,45 @@ def create_app():
             return redirect(url_for("login"))
         return redirect(url_for("dashboard"))
 
+    def client_ip():
+        # nginx sets X-Real-IP; gunicorn only listens on localhost.
+        return request.headers.get("X-Real-IP") or request.remote_addr or "?"
+
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if request.method == "POST":
+            db = get_db()
+            ip = client_ip()
+            since = (datetime.now(timezone.utc) - LOGIN_WINDOW).isoformat(timespec="seconds")
+            db.execute("DELETE FROM login_failures WHERE created_at < ?", (since,))
+            failures = db.execute(
+                "SELECT COUNT(*) FROM login_failures WHERE ip = ?", (ip,)
+            ).fetchone()[0]
+            if failures >= LOGIN_MAX_FAILURES:
+                db.commit()
+                flash("Слишком много попыток входа. Попробуйте через 15 минут.", "error")
+                return render_template("login.html"), 429
             username = request.form.get("username", "").strip()
             password = request.form.get("password", "")
-            row = get_db().execute(
+            row = db.execute(
                 "SELECT * FROM users WHERE username = ?", (username,)
             ).fetchone()
             if row and row["is_active"] and check_password_hash(row["password_hash"], password):
+                db.execute("DELETE FROM login_failures WHERE ip = ?", (ip,))
+                db.commit()
                 session.clear()
                 session["uid"] = row["id"]
                 session.permanent = False
-                nxt = request.args.get("next", "")
-                if nxt.startswith("/"):
-                    return redirect(nxt)
+                nxt = safe_next(request.args.get("next", ""))
+                if nxt:
+                    # `next` is app-relative (request.path); re-add the mount prefix.
+                    return redirect(request.script_root + nxt)
                 return redirect(url_for("dashboard"))
+            db.execute(
+                "INSERT INTO login_failures (ip, created_at) VALUES (?, ?)",
+                (ip, datetime.now(timezone.utc).isoformat(timespec="seconds")),
+            )
+            db.commit()
             flash("Неверный логин или пароль.", "error")
         return render_template("login.html")
 
@@ -220,8 +305,11 @@ def create_app():
         total = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
         admins = db.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'").fetchone()[0]
         active = db.execute("SELECT COUNT(*) FROM users WHERE is_active = 1").fetchone()[0]
+        recent = db.execute(
+            "SELECT * FROM users ORDER BY created_at DESC, id DESC LIMIT 5"
+        ).fetchall()
         return render_template(
-            "dashboard.html", total=total, admins=admins, active=active
+            "dashboard.html", total=total, admins=admins, active=active, recent=recent
         )
 
     @app.route("/account", methods=["GET", "POST"])
@@ -255,7 +343,7 @@ def create_app():
     @admin_required
     def users():
         rows = get_db().execute(
-            "SELECT * FROM users ORDER BY created_at DESC"
+            "SELECT * FROM users ORDER BY created_at DESC, id DESC"
         ).fetchall()
         return render_template("users.html", users=rows)
 
@@ -332,6 +420,11 @@ def create_app():
         get_db().commit()
         flash("Пользователь удалён.", "success")
         return redirect(url_for("users"))
+
+    @app.errorhandler(400)
+    def bad_request(_e):
+        return render_template("error.html", code=400,
+                               message="Некорректный запрос. Обновите страницу и попробуйте снова."), 400
 
     @app.errorhandler(403)
     def forbidden(_e):

@@ -1,17 +1,79 @@
 {% extends "base.html" %}
-{% block title %}Вход — Панель{% endblock %}
-{% block content %}
-<div style="max-width:380px;margin:8vh auto 0;">
-  <div class="card">
-    <h1 style="text-align:center;">Вход в панель</h1>
-    <form method="post" action="{{ url_for('login') }}{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}">
+{% import "_ui.html" as ui %}
+{% block title %}Вход{% endblock %}
+{% block body %}
+{% set next = request.args.get('next') %}
+<div class="auth">
+  <section class="auth-art" aria-hidden="true">
+    <span class="orb a"></span><span class="orb b"></span><span class="orb c"></span>
+    <div class="reticle">
+      <svg viewBox="0 0 200 200" fill="none" stroke="currentColor">
+        <g class="spin"><circle cx="100" cy="100" r="96" stroke-dasharray="2 6"/></g>
+        <circle cx="100" cy="100" r="72"/>
+        <g class="spin-r"><circle cx="100" cy="100" r="50" stroke-dasharray="40 12"/></g>
+        <circle cx="100" cy="100" r="20" stroke="#c8f542" stroke-opacity=".7"/>
+        <circle cx="100" cy="100" r="2.5" fill="#c8f542" stroke="none"/>
+        <path d="M100 0v36M100 164v36M0 100h36M164 100h36"/>
+      </svg>
+    </div>
+
+    <div class="brand">
+      <span class="brand-mark">{{ ui.icon('target') }}</span>
+      <span class="brand-name">TargetPanel<small>Панель управления</small></span>
+    </div>
+
+    <div class="auth-copy">
+      <h1>Всё под<br><em>прицелом.</em></h1>
+      <p>Пользователи, роли и доступы — в одном месте. Быстро, безопасно, без лишнего.</p>
+    </div>
+
+    <div class="auth-meta">
+      <span>{{ ui.icon('shield', 'sm') }} CSRF-защита</span>
+      <span>{{ ui.icon('lock', 'sm') }} PBKDF2-хэши</span>
+      <span>{{ ui.icon('zap', 'sm') }} Защита от перебора</span>
+    </div>
+  </section>
+
+  <section class="auth-side">
+    <button class="icon-btn theme-float" type="button" data-theme-toggle aria-label="Сменить тему">
+      <svg class="icon theme-ico-light" aria-hidden="true"><use href="#i-sun"/></svg>
+      <svg class="icon theme-ico-dark" aria-hidden="true"><use href="#i-moon"/></svg>
+    </button>
+
+    <form class="auth-form rise" method="post" action="{{ url_for('login') }}{% if next %}?next={{ next|urlencode }}{% endif %}">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <label for="username">Логин</label>
-      <input id="username" name="username" autocomplete="username" autofocus required>
-      <label for="password">Пароль</label>
-      <input id="password" name="password" type="password" autocomplete="current-password" required>
-      <button class="btn" type="submit" style="width:100%;margin-top:18px;">Войти</button>
+      <h2>Вход в панель</h2>
+      <p>Введите данные своей учётной записи.</p>
+
+      <div class="field">
+        <label for="username">Логин</label>
+        <div class="control">
+          {{ ui.icon('user') }}
+          <input class="input" id="username" name="username" autocomplete="username"
+                 value="{{ request.form.get('username', '') }}" placeholder="например, admin"
+                 {% if not request.form.get('username') %}autofocus{% endif %} required>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="password">Пароль</label>
+        <div class="control">
+          {{ ui.icon('lock') }}
+          <input class="input has-tail" id="password" name="password" type="password"
+                 autocomplete="current-password" placeholder="••••••••" data-caps="caps-hint"
+                 {% if request.form.get('username') %}autofocus{% endif %} required>
+          <div class="control-tail">
+            <button class="icon-btn" type="button" data-reveal="password" aria-label="Показать пароль" aria-pressed="false">
+              <svg class="icon" aria-hidden="true"><use href="#i-eye"/></svg>
+            </button>
+          </div>
+        </div>
+        <span class="hint warn" id="caps-hint" aria-live="polite"></span>
+      </div>
+
+      <button class="btn block" type="submit">Войти {{ ui.icon('arrow-right') }}</button>
+      <p class="auth-foot">Нет доступа? Обратитесь к администратору.</p>
     </form>
-  </div>
+  </section>
 </div>
 {% endblock %}

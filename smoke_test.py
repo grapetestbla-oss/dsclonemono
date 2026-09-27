@@ -80,6 +80,49 @@ def test():
     assert 'action="/targetpanel/login' in r.get_data(as_text=True)
     print("OK  subpath prefix reflected in generated URLs")
 
+    # 11. Open redirect via ?next=//host is ignored
+    client.post("/logout", data={"_csrf": csrf(client.get("/account").get_data(as_text=True))})
+    r = client.get("/login"); tok = csrf(r.get_data(as_text=True))
+    r = client.post("/login?next=//evil.example", data={"username": "operator1",
+                    "password": "supersecret1", "_csrf": tok})
+    assert r.status_code == 302 and "evil.example" not in r.headers["Location"], r.headers
+    print("OK  ?next=//host does not redirect off-site")
+
+    # 12. ?next keeps the sub-path prefix after login
+    tok = csrf(client.get("/account").get_data(as_text=True))
+    client.post("/logout", data={"_csrf": tok})
+    pfx = {"X-Forwarded-Prefix": "/targetpanel"}
+    r = client.get("/account", headers=pfx)
+    assert r.headers["Location"].startswith("/targetpanel/login?next=/account"), r.headers
+    tok = csrf(client.get("/login", headers=pfx).get_data(as_text=True))
+    r = client.post("/login?next=/account", headers=pfx, data={"username": "operator1",
+                    "password": "supersecret1", "_csrf": tok})
+    assert r.headers["Location"] == "/targetpanel/account", r.headers
+    print("OK  ?next redirect honors sub-path prefix")
+
+    # 13. Brute force: IP is locked out after repeated failures
+    tok = csrf(client.get("/account").get_data(as_text=True))
+    client.post("/logout", data={"_csrf": tok})
+    ip = {"X-Real-IP": "203.0.113.9"}
+    for _ in range(app_module.LOGIN_MAX_FAILURES):
+        tok = csrf(client.get("/login").get_data(as_text=True))
+        client.post("/login", headers=ip, data={"username": "operator1", "password": "nope",
+                                                "_csrf": tok})
+    tok = csrf(client.get("/login").get_data(as_text=True))
+    r = client.post("/login", headers=ip, data={"username": "operator1",
+                    "password": "supersecret1", "_csrf": tok})
+    assert r.status_code == 429 and "Слишком много попыток" in r.get_data(as_text=True)
+    print("OK  login throttled after repeated failures (429)")
+
+    # 14. Every page renders for an admin
+    tok = csrf(client.get("/login").get_data(as_text=True))
+    client.post("/login", data={"username": "rym6a", "password": "targetclxn_rym6a4ka", "_csrf": tok})
+    for path in ("/dashboard", "/users", "/account"):
+        assert client.get(path).status_code == 200, path
+    assert client.get("/nope").status_code == 404
+    assert client.get("/static/app.css").status_code == 200
+    print("OK  all pages render")
+
     print("\nALL TESTS PASSED")
 
 

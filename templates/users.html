@@ -1,74 +1,154 @@
 {% extends "base.html" %}
-{% block title %}Пользователи — Панель{% endblock %}
+{% import "_ui.html" as ui %}
+{% block title %}Пользователи{% endblock %}
 {% block content %}
-<div class="card">
-  <h1>Создать пользователя</h1>
-  <form method="post" action="{{ url_for('users_create') }}">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <div style="display:grid;grid-template-columns:1fr 1fr 160px;gap:14px;align-items:end;">
-      <div>
-        <label for="username">Логин</label>
-        <input id="username" name="username" required minlength="3">
-      </div>
-      <div>
-        <label for="password">Пароль</label>
-        <input id="password" name="password" type="text" required minlength="8">
-      </div>
-      <div>
-        <label for="role">Роль</label>
-        <select id="role" name="role">
-          <option value="user">Пользователь</option>
-          <option value="admin">Администратор</option>
-        </select>
-      </div>
-    </div>
-    <button class="btn" type="submit" style="margin-top:16px;">Создать</button>
-  </form>
+{% set n_admin = users|selectattr('role', 'equalto', 'admin')|list|length %}
+{% set n_off = users|rejectattr('is_active')|list|length %}
+<div class="page-head rise">
+  <div>
+    <div class="eyebrow">Управление доступом</div>
+    <h1 class="page-title">Пользователи <span class="count">({{ users|length }})</span></h1>
+  </div>
+  <button class="btn" type="button" data-open="create-user">{{ ui.icon('plus') }} Новый пользователь</button>
 </div>
 
-<div class="card">
-  <h1>Пользователи ({{ users|length }})</h1>
-  <table>
+<section class="card table-card rise">
+  <div class="toolbar">
+    <div class="control">
+      {{ ui.icon('search') }}
+      <input class="input" id="user-search" type="search" placeholder="Поиск по логину…  /" aria-label="Поиск по логину" autocomplete="off">
+    </div>
+    <div class="chips" role="group" aria-label="Фильтр">
+      <button class="chip" type="button" data-filter="all" aria-pressed="true">Все <span class="n">{{ users|length }}</span></button>
+      <button class="chip" type="button" data-filter="admin" aria-pressed="false">Админы <span class="n">{{ n_admin }}</span></button>
+      <button class="chip" type="button" data-filter="off" aria-pressed="false">Отключённые <span class="n">{{ n_off }}</span></button>
+    </div>
+  </div>
+
+  <table class="table" id="users-table">
     <thead>
-      <tr><th>Логин</th><th>Роль</th><th>Статус</th><th>Создан</th><th>Кем</th><th>Действия</th></tr>
+      <tr><th>Пользователь</th><th>Роль</th><th>Статус</th><th>Создан</th><th>Кем</th><th class="th-actions">Действия</th></tr>
     </thead>
     <tbody>
       {% for u in users %}
-      <tr>
-        <td>{{ u['username'] }}{% if u['id'] == current_user['id'] %} <span class="muted">(вы)</span>{% endif %}</td>
-        <td>
-          <form class="inline" method="post" action="{{ url_for('users_role', user_id=u['id']) }}">
+      {% set is_me = u['id'] == current_user['id'] %}
+      <tr data-name="{{ u['username']|lower }}" data-role="{{ u['role'] }}" data-active="{{ u['is_active'] }}"
+          class="{{ 'is-off' if not u['is_active'] }}">
+        <td class="td-user">
+          <div class="user-cell">
+            {{ ui.avatar(u['username'], 'sm') }}
+            <b>{{ u['username'] }}</b>
+            {% if is_me %}<span class="badge you">вы</span>{% endif %}
+          </div>
+        </td>
+        <td data-label="Роль">
+          {% if is_me %}
+          <span class="badge {{ u['role'] }}">{{ ui.role_label(u['role']) }}</span>
+          {% else %}
+          <form method="post" action="{{ url_for('users_role', user_id=u['id']) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <select name="role" onchange="this.form.submit()" class="badge {{ u['role'] }}" style="width:auto;padding:4px 8px;">
+            <select name="role" class="role-select {{ u['role'] }}" data-autosubmit aria-label="Роль {{ u['username'] }}">
               <option value="user" {{ 'selected' if u['role']=='user' }}>Пользователь</option>
               <option value="admin" {{ 'selected' if u['role']=='admin' }}>Администратор</option>
             </select>
+            <noscript><button class="btn ghost sm" type="submit">OK</button></noscript>
           </form>
+          {% endif %}
         </td>
-        <td>
-          {% if u['is_active'] %}<span class="badge on">активен</span>
-          {% else %}<span class="badge off">отключён</span>{% endif %}
+        <td data-label="Статус">
+          {% if u['is_active'] %}<span class="status on">активен</span>
+          {% else %}<span class="status off">отключён</span>{% endif %}
         </td>
-        <td class="muted">{{ u['created_at'][:10] }}</td>
-        <td class="muted">{{ u['created_by'] or '—' }}</td>
-        <td>
+        <td data-label="Создан" class="muted">{{ u['created_at']|date_ru }}</td>
+        <td data-label="Кем" class="muted">{{ u['created_by'] or '—' }}</td>
+        <td class="td-actions">
+          {% if not is_me %}
           <div class="row-actions">
-            {% if u['id'] != current_user['id'] %}
-            <form class="inline" method="post" action="{{ url_for('users_toggle', user_id=u['id']) }}">
+            <form method="post" action="{{ url_for('users_toggle', user_id=u['id']) }}">
               <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button class="btn secondary sm" type="submit">{{ 'Отключить' if u['is_active'] else 'Включить' }}</button>
+              <button class="icon-btn {{ 'danger' if u['is_active'] else 'ok' }}" type="submit"
+                      data-tip="{{ 'Отключить' if u['is_active'] else 'Включить' }}"
+                      aria-label="{{ 'Отключить' if u['is_active'] else 'Включить' }} {{ u['username'] }}">{{ ui.icon('power') }}</button>
             </form>
-            <form class="inline" method="post" action="{{ url_for('users_delete', user_id=u['id']) }}"
-                  onsubmit="return confirm('Удалить пользователя {{ u['username'] }}?');">
+            <form method="post" action="{{ url_for('users_delete', user_id=u['id']) }}" data-confirm="{{ u['username'] }}">
               <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button class="btn danger sm" type="submit">Удалить</button>
+              <button class="icon-btn danger" type="submit" data-tip="Удалить" aria-label="Удалить {{ u['username'] }}">{{ ui.icon('trash') }}</button>
             </form>
-            {% else %}<span class="muted">—</span>{% endif %}
           </div>
+          {% else %}<span class="faint">—</span>{% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-</div>
+  <div class="empty" id="users-empty">
+    {{ ui.icon('search') }}
+    <b>Никого не нашли</b>
+    Попробуйте другой запрос или сбросьте фильтр.
+  </div>
+</section>
+{% endblock %}
+
+{% block dialogs %}
+<dialog id="create-user" aria-labelledby="create-user-title">
+  <form method="post" action="{{ url_for('users_create') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="dialog-head">
+      <div>
+        <h2 id="create-user-title">Новый пользователь</h2>
+        <p>Логин и пароль передайте пользователю лично.</p>
+      </div>
+      <button class="icon-btn" type="button" data-close aria-label="Закрыть">{{ ui.icon('x') }}</button>
+    </div>
+    <div class="dialog-body">
+      <div class="field">
+        <label for="new-username">Логин</label>
+        <div class="control">
+          {{ ui.icon('user') }}
+          <input class="input" id="new-username" name="username" required minlength="3" autocomplete="off" placeholder="минимум 3 символа" autofocus>
+        </div>
+      </div>
+      <div class="field">
+        <label for="new-password">Пароль</label>
+        <div class="control">
+          {{ ui.icon('lock') }}
+          <input class="input has-tail-2" id="new-password" name="password" type="text" required minlength="8" autocomplete="new-password" placeholder="минимум 8 символов">
+          <div class="control-tail">
+            <button class="icon-btn" type="button" data-generate="new-password" data-tip="Сгенерировать" aria-label="Сгенерировать пароль">{{ ui.icon('dice') }}</button>
+            <button class="icon-btn" type="button" data-copy="new-password" data-tip="Копировать" aria-label="Скопировать пароль"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg></button>
+          </div>
+        </div>
+        <div class="strength" data-strength="new-password"><span></span><span></span><span></span><span></span></div>
+        <span class="hint" id="new-password-hint">Минимум 8 символов</span>
+      </div>
+      <div class="field">
+        <span class="label" id="role-label">Роль</span>
+        <div class="segmented" role="radiogroup" aria-labelledby="role-label">
+          <input type="radio" name="role" value="user" id="role-user" checked>
+          <label for="role-user">{{ ui.icon('user', 'sm') }} Пользователь</label>
+          <input type="radio" name="role" value="admin" id="role-admin">
+          <label for="role-admin">{{ ui.icon('shield', 'sm') }} Администратор</label>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn ghost" type="button" data-close>Отмена</button>
+      <button class="btn" type="submit">{{ ui.icon('check') }} Создать</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="confirm" aria-labelledby="confirm-title">
+  <div class="dialog-head">
+    <div>
+      <div class="dialog-danger-ico">{{ ui.icon('trash', 'lg') }}</div>
+      <h2 id="confirm-title">Удалить пользователя?</h2>
+      <p>Учётная запись <b data-confirm-name></b> будет удалена без возможности восстановления.</p>
+    </div>
+  </div>
+  <div class="dialog-foot">
+    <button class="btn ghost" type="button" data-close>Отмена</button>
+    <button class="btn danger" type="button" data-confirm-yes>{{ ui.icon('trash') }} Удалить</button>
+  </div>
+</dialog>
 {% endblock %}

@@ -1,0 +1,28 @@
+{# Shared UI macros. Import with: {% import "_ui.html" as ui %} #}
+{% macro icon(name, cls="") -%}
+<svg class="icon {{ cls }}" aria-hidden="true"><use href="#i-{{ name }}"/></svg>
+{%- endmacro %}
+
+{% macro avatar(name, cls="") -%}
+<span class="avatar {{ cls }}" style="--h: {{ name|hue }}" aria-hidden="true">{{ name[:2] }}</span>
+{%- endmacro %}
+
+{% macro role_label(role) -%}
+{{ 'Администратор' if role == 'admin' else 'Пользователь' }}
+{%- endmacro %}
+
+{% macro toasts() -%}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="toasts" role="status" aria-live="polite">
+  {% for category, message in messages %}
+  <div class="toast {{ category }}">
+    <span class="toast-ico">{{ icon('check' if category == 'success' else 'alert', 'sm') }}</span>
+    <span class="toast-msg">{{ message }}</span>
+    <button class="toast-x" type="button" aria-label="Закрыть">{{ icon('x', 'sm') }}</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+{%- endmacro %}
