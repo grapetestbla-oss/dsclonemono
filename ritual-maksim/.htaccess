@@ -1,0 +1,7 @@
+# Keep secrets out of reach on Apache hosting.
+<Files "config.php">
+  Require all denied
+</Files>
+<FilesMatch "\.(md|example\.php)$">
+  Require all denied
+</FilesMatch>

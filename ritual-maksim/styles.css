@@ -360,6 +360,7 @@ h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 3.8vw, 
 
 /* forms */
 .form { display: grid; gap: 16px; }
+.hp { position: absolute !important; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .field { display: grid; gap: 8px; }
 .field span { font-size: 13.5px; font-weight: 600; color: var(--on-l-2); }
 .field input {

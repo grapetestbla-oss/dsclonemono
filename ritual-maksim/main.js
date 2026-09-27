@@ -3,11 +3,12 @@
 (function () {
   "use strict";
 
-  /* Where lead forms are sent: an HTTPS endpoint that accepts
-     POST application/json {name, phone, topic, page}. Leave empty until a
-     backend is connected — the form then asks the visitor to call instead
-     of pretending the request went through. See README.md. */
-  const LEAD_ENDPOINT = "";
+  /* Where lead forms are sent: send.php next to this file forwards them to
+     Telegram (or the URL of telegram-worker when hosting has no PHP).
+     It accepts POST application/json {name, phone, topic, page, website}.
+     Set to "" to switch online requests off — the form then asks the visitor
+     to call instead of pretending the request went through. See README.md. */
+  const LEAD_ENDPOINT = "send.php";
 
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -119,11 +120,16 @@
 
   /* ---------- phone mask (+375 XX XXX-XX-XX) ---------- */
   function formatBY(raw) {
-    let d = raw.replace(/\D/g, "");
-    if (d.startsWith("80")) d = "375" + d.slice(2);
-    if (!d.startsWith("375")) d = "375" + d.replace(/^3?7?5?/, "");
-    d = d.slice(0, 12);
-    const p = d.slice(3);
+    // National part (operator code + number). The "+375" prefix may sit
+    // anywhere if the caret was misplaced, so remove it as a literal first.
+    let p;
+    if (raw.includes("+375")) p = raw.replace("+375", "").replace(/\D/g, "");
+    else {
+      p = raw.replace(/\D/g, "");
+      if (p.startsWith("80")) p = p.slice(2);
+      else if (p.startsWith("375")) p = p.slice(3);
+    }
+    p = p.slice(0, 9);
     let out = "+375";
     if (p.length) out += " (" + p.slice(0, 2);
     if (p.length > 2) out += ") " + p.slice(2, 5);
@@ -131,11 +137,20 @@
     if (p.length > 7) out += "-" + p.slice(7, 9);
     return out;
   }
+  const caretToEnd = (inp) => {
+    const n = inp.value.length;
+    try { inp.setSelectionRange(n, n); } catch (_) { /* unsupported type */ }
+  };
   $$("input[type=tel]").forEach((inp) => {
-    inp.addEventListener("focus", () => { if (!inp.value) inp.value = "+375 ("; });
+    inp.addEventListener("focus", () => {
+      if (!inp.value) inp.value = "+375 (";
+      requestAnimationFrame(() => caretToEnd(inp));
+    });
     inp.addEventListener("blur", () => { if (inp.value.replace(/\D/g, "").length <= 3) inp.value = ""; });
     inp.addEventListener("input", () => {
+      const atEnd = inp.selectionStart === inp.value.length;
       inp.value = formatBY(inp.value);
+      if (atEnd || inp.value.length <= 6) caretToEnd(inp);
       inp.removeAttribute("aria-invalid");
     });
   });
@@ -178,8 +193,14 @@
             phone: "+" + digits,
             topic: $("input[name=topic]", form).value,
             page: location.href,
+            website: $("input[name=website]", form).value,
           }),
         });
+        if (res.status === 429) {
+          status.className = "form-status err";
+          status.innerHTML = "Заявка уже отправлена, мы скоро перезвоним. Если срочно — " + fallback;
+          return;
+        }
         if (!res.ok) throw new Error(res.status);
         form.reset();
         status.className = "form-status ok";

@@ -5,3 +5,4 @@ panel.db
 venv/
 .env
 .panel_secret_key
+ritual-maksim/config.php
